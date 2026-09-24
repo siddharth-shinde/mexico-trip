@@ -59,6 +59,7 @@ h1{font-size:clamp(28px,7vw,46px);line-height:1.03;letter-spacing:-.025em;font-w
 .ruler{position:relative;height:38px;border-bottom:1px solid var(--rule);margin-top:16px}
 .rday{position:absolute;top:0;bottom:0;border-left:1px solid var(--grid)}
 .rday.week{border-left-color:var(--rule)}
+.gl.alt{background:rgba(128,150,165,.055)}
 .rday b{position:absolute;top:15px;left:5px;font-family:"Archivo Narrow",Arial,sans-serif;font-size:13px;font-weight:700}
 .rday i{position:absolute;top:1px;left:5px;font-style:normal;font-size:10.5px;font-weight:500;
   font-family:"Archivo Narrow",Arial,sans-serif;color:var(--ink-faint)}
@@ -143,7 +144,7 @@ footer p{margin:0 0 4px}
   <div class="detail" id="detail"></div>
 
   <footer>
-    <p>Times are local to the airport shown. Flights only — hotels and ground travel aren't in here yet.</p>
+    <p>Each point sits at its departure time within the day, so earlier flights fall to the left. Times are local to the airport shown. Flights only — hotels and ground travel aren't in here yet.</p>
     <p>Last updated 23 September 2026.</p>
   </footer>
 </div>
@@ -206,7 +207,9 @@ let RANGE={...CORE},full=false,active="all",selected=null;
 
 const cssNum=v=>parseFloat(getComputedStyle(document.documentElement).getPropertyValue(v));
 const px=()=>cssNum("--day-w"), labelW=()=>cssNum("--label-w"), laneH=()=>cssNum("--lane-h");
-const xOf=iso=>labelW()+(d2n(iso)-d2n(RANGE.from))*px()+px()/2;
+const frac=t=>{if(!t)return .5;const[h,m]=t.split(":").map(Number);return Math.min(.94,Math.max(.06,(h*60+m)/1440));};
+const xOf=(iso,t)=>labelW()+(d2n(iso)-d2n(RANGE.from)+frac(t))*px();
+const xJ=j=>xOf(j.date,j.legs[0].at);
 
 function buildChips(){
   const c=document.getElementById("chips");
@@ -263,7 +266,8 @@ function draw(){
     const dt=n2d(d2n(RANGE.from)+i);
     const iso=dt.toISOString().slice(0,10);
     const g=document.createElement("div");
-    g.className="gl"+(dt.getUTCDay()===1?" week":"")+(HOT.includes(iso)?" hot":"");
+    g.className="gl"+(dt.getUTCDay()===1?" week":"")+(HOT.includes(iso)?" hot":"")+(i%2?" alt":"");
+    g.style.width=px()+"px";
     g.style.left=(labelW()+i*px())+"px";gw.appendChild(g);
   }
   lanes.appendChild(gw);
@@ -280,14 +284,14 @@ function draw(){
     const mine=J.filter(j=>j.who.includes(id)&&d2n(j.date)>=d2n(RANGE.from)&&d2n(j.date)<=d2n(RANGE.to))
                 .sort((a,b)=>d2n(a.date)-d2n(b.date));
     if(mine.length>1){
-      const x1=xOf(mine[0].date),x2=xOf(mine[mine.length-1].date);
+      const x1=xJ(mine[0]),x2=xJ(mine[mine.length-1]);
       const rail=document.createElement("div");rail.className="rail";
       rail.style.left=x1+"px";rail.style.width=(x2-x1)+"px";lane.appendChild(rail);
       for(let i=0;i<mine.length-1;i++){
         const arr=mine[i].legs[mine[i].legs.length-1].b;
         const dep=mine[i+1].legs[0].a;
         if(arr!==dep){
-          const ga=xOf(mine[i].date),gb=xOf(mine[i+1].date);
+          const ga=xJ(mine[i]),gb=xJ(mine[i+1]);
           const g=document.createElement("div");g.className="gap";
           g.style.left=ga+"px";g.style.width=(gb-ga)+"px";lane.appendChild(g);
           const t=document.createElement("div");t.className="gap-note";
@@ -299,13 +303,13 @@ function draw(){
     mine.forEach((j,i)=>{
       const b=document.createElement("button");
       b.className="mk "+(i%2?"down":"up");
-      b.style.left=xOf(j.date)+"px";
+      b.style.left=xJ(j)+"px";
       b.setAttribute("aria-pressed",selected===j.id?"true":"false");
       const f=j.legs[0],l=j.legs[j.legs.length-1];
       b.setAttribute("aria-label",`${f.f}, ${f.a} to ${l.b}`);
       const cap=document.createElement("span");cap.className="cap";
       cap.textContent=f.f.split(" / ")[0];
-      const rt=document.createElement("span");rt.className="rt";rt.textContent=f.a+"→"+l.b;
+      const rt=document.createElement("span");rt.className="rt";rt.textContent=f.a+"→"+l.b+"  "+f.at;
       cap.appendChild(rt);b.appendChild(cap);
       b.addEventListener("click",()=>{selected=j.id;draw();showDetail(j);});
       lane.appendChild(b);
@@ -319,7 +323,7 @@ function draw(){
     if(rows.length<2)return;
     const y1=rows[0]*laneH()+laneH()/2,y2=rows[rows.length-1]*laneH()+laneH()/2;
     const t=document.createElement("div");t.className="tie";
-    t.style.left=xOf(j.date)+"px";t.style.top=y1+"px";t.style.height=(y2-y1)+"px";
+    t.style.left=xJ(j)+"px";t.style.top=y1+"px";t.style.height=(y2-y1)+"px";
     lanes.appendChild(t);
   });
 
